@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <script src="./sdk/secretsdk.js"></script>
+  <title>secret sdk</title>
+  <style>
+    html,
+    body {
+      font-size: 20px;
+      text-align: center;
+      background: #b1e2ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    button {
+      display: block;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+      background: #fff;
+      border: 1px solid #dcdfe6;
+      color: #606266;
+      -webkit-appearance: none;
+      text-align: center;
+      box-sizing: border-box;
+      outline: none;
+      margin: 0;
+      transition: .1s;
+      font-weight: 500;
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      padding: 12px 30px;
+      margin: 20px auto;
+      font-size: 14px;
+      border-radius: 4px;
+      color: #fff;
+      background-color: #409eff;
+      border-color: #409eff;
+    }
+
+    .logo-wrap img {
+      display: inline-block;
+      width: 30%;
+      margin-top: 30px;
+    }
+
+    .logo-wrap p {
+      font-size: 20px;
+      font-weight: 400;
+      color: #333;
+    }
+
+    .pay-wrap,
+    .auth-wrap,
+    .status-wrap {
+      display: none;
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    .status-wrap p {
+      color: green;
+    }
+
+    .status-wrap a {
+      color: bule;
+    }
+
+    @-webkit-keyframes loadinf-wrap {
+      0% {
+        -webkit-transform: scale(1, 0.3);
+      }
+
+      100% {
+        -webkit-transform: scale(1, 1);
+      }
+    }
+
+    .loadinf-wrap {
+      display: none;
+      width: 100%;
+      height: 28px;
+    }
+
+    .loadinf-wrap div {
+      width: 2px;
+      margin-right: 3px;
+      height: 100%;
+      background: #333;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .loadinf-wrap div:nth-child(1) {
+      -webkit-animation: loadinf-wrap 0.5s -0.3s ease-in-out infinite alternate;
+    }
+
+    .loadinf-wrap div:nth-child(2) {
+      -webkit-animation: loadinf-wrap 0.5s -0.25s ease-in-out infinite alternate;
+    }
+
+    .loadinf-wrap div:nth-child(3) {
+      -webkit-animation: loadinf-wrap 0.5s -0.2s ease-in-out infinite alternate;
+    }
+
+    .loadinf-wrap div:nth-child(4) {
+      -webkit-animation: loadinf-wrap 0.5s -0.1s ease-in-out infinite alternate;
+    }
+
+    .loadinf-wrap div:nth-child(5) {
+      -webkit-animation: loadinf-wrap 0.5s 0s ease-in-out infinite alternate;
+    }
+  </style>
+
+</head>
+
+<body>
+  <div class="logo-wrap">
+    <img class="logo" src="./logo.png" alt="">
+    <p class="name">secret 开放平台</p>
+  </div>
+  <div class="loadinf-wrap">
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+  </div>
+  <div class="pay-wrap">
+    <button class="recharge-btn">用户充值</button>
+    <button class="withdraw-btn">用户提现</button>
+  </div>
+  <div class="auth-wrap">
+    <button class="authorization-box">点击授权</button>
+  </div>
+  <div class="status-wrap">
+    <p class="res">
+      充值成功
+    </p>
+  </div>
+
+  <script>
+    window.onload = function () {
+      /* 正式线 */
+      var appId      = "0826565f013946bcbd277dc791419f05";  // 唯一标识 master
+      var merchantId = "1139463050538885121";               // 商户ID master
+      var baseUrl    = "http://148.66.11.232:9000";            // master
+      var coinName   = "DC";                                // 	币种名称 master
+      // var baseUrl    = "http://148.66.11.232:9000/demo";            // master
+
+      /* 接口入参 */
+      var responseType = "code"  // 返回类型
+      var scope        = 
+        "userinfo" // 应用授权作用域，base （不弹出授权页面，直接跳转，只能获取用户openId），userinfo （弹出授权页面，可通过openId拿到昵称、性别、所在地。只要用户授权，也能获取其信息 ）
+      var amount       = "0.01";                     // 提币金额
+      var outTradeNo   = new Date().getTime() + '';  // 商户订单号
+      var notify_url   = location.origin;            // 业务回调地址
+      var openId       = "";                         // 同一主体下用户唯一标识
+      var accessToken  = "";                         // accessToken
+      var refreshToken = "";                         // 用户刷新accessToken
+      var merchant     = "secret";                   // 商户名称
+      var remark       = "secret";                   // 订单备注，可选
+
+      // 获取URL query
+      var queryObj = get_query();
+
+      // 授权回调逻辑
+      if (queryObj.code) {
+        // 获取AccessToken
+        getAccessToken();
+      } else if (queryObj.merchantId) {
+        // 充值回调逻辑
+        document.querySelector('.auth-wrap').style.display = "none";
+        document.querySelector('.pay-wrap').style.display = "none";
+        document.querySelector('.status-wrap').style.display = "block";
+        document.querySelector('.res').innerHTML = `充值成功`;
+      } else {
+        // 初始页面
+        document.querySelector('.pay-wrap').style.display = "none";
+        document.querySelector('.status-wrap').style.display = "none";
+        document.querySelector('.auth-wrap').style.display = "block";
+      }
+
+      // 唤起app授权逻辑
+      document.querySelector(".authorization-box").onclick = startAuthorizationFun;
+
+      function startAuthorizationFun() {
+        if (!appId) {
+          alert('请填写appId');
+          return;
+        }
+        // 取得secret sdk实例
+        secretAuthorization = window.getSecretSdk({
+          appId: appId
+        });
+        console.log('secretAuthorization', secretAuthorization)
+        // 授权
+        var data = {
+          appId,
+          responseType,
+          scope
+        };
+        secretAuthorization.authorization(data);
+        secretAuthorization.destroy();
+      }
+
+      // 用户充值
+      document.querySelector(".recharge-btn").onclick = function () {
+        // 先判断用户是否授权登录
+        if (!accessToken) {
+          // 未授权要先授权登录
+          // startRechargeFun(); // test
+          location.href = location.origin;
+        } else {
+          startRechargeFun();
+        }
+      };
+
+      function startRechargeFun() {
+        data = {
+          merchantId: merchantId,
+          appId: appId,
+          openId: openId,
+          coinName: coinName,
+          amount: amount,
+          outTradeNo: '' + new Date().getTime(),
+          remark: remark,
+          accessToken: accessToken,
+          notify_url: location.origin,
+          merchant: merchant,
+        };
+        if (!data.appId) {
+          alert('appId 不存在');
+          return;
+        }
+        // 通知状态回调URL
+        data.notify_url += "?merchantId=" + data.merchantId;
+
+        secretAuthorization = window.getSecretSdk({
+          appId: data.appId
+        });
+        console.log('Recharge data', data)
+        secretAuthorization.recharge(data);
+      }
+
+      // 用户提币
+      document.querySelector(".withdraw-btn").onclick = getWithdraw;
+
+      // 获取AccessToken
+      function getAccessToken() {
+        document.querySelector('.loadinf-wrap').style.display = 'block';
+        var tokenData = {
+          appId: appId,
+          // secret: "2569c63e504541a3b2764f2976e5c8c3",
+          code: queryObj.code,
+          grantType: "authorizationCode"
+        };
+        if (!tokenData.appId) {
+          alert("appId不能为空")
+        }
+        ajaxGetAccessToken(tokenData, tokenSuccess, tokenFail);
+
+        function tokenSuccess(res) {
+          document.querySelector('.loadinf-wrap').style.display = 'none';
+          res = JSON.parse(res);
+          if (res.success) {
+            data = res.data;
+            console.log("token", data);
+            // data = JSON.parse(data);
+            openId = data.openId;
+            accessToken = data.accessToken;
+            refreshToken = data.refreshToken;
+            appId = tokenData.appId;
+            alert('用户授权成功');
+            document.querySelector('.auth-wrap').style.display = "none";
+            document.querySelector('.status-wrap').style.display = "none";
+            document.querySelector('.pay-wrap').style.display = "block";
+            // 获取用户信息
+            getUserInfo();
+          } else {
+            alert(res.msg);
+            console.log("token err", res.msg);
+          }
+        }
+
+        function tokenFail(err) {
+          document.querySelector('.loadinf-wrap').style.display = 'none';
+          alert(err);
+          err = JSON.parse(err);
+          console.log("token err", err)
+        }
+      }
+
+      // UserInfo
+      function getUserInfo() {
+        var userInfoData = {
+          accessToken,
+          openId: openId,
+          // 第三方后台接口需要的参数
+          appId: appId
+        };
+
+        ajaxGetUserInfo(userInfoData, userInfoSuccess, userInfoFail);
+
+        function userInfoSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            console.log('userInfoSuccess', res.data);
+            data = res.data;
+            // data = JSON.parse(data);
+            console.log(data);
+            document.querySelector('.logo').setAttribute('src', data.userAvatarUrl);
+            document.querySelector('.logo').style['border-radius'] = '50%';
+            document.querySelector('.name').innerText = data.name;
+          } else {
+            console.log('user', res.msg);
+            if (appId && refreshToken) {
+              getRefreshToken();
+            }
+          }
+        }
+
+        function userInfoFail(err) {
+          err = JSON.parse(err);
+          document.querySelector(".infobox").innerHTML = `${
+              document.querySelector(".infobox").innerHTML
+            } </br> userinfo err :${err};`;
+          console.log('user', err);
+        }
+      }
+
+      // RefreshToken
+      function getRefreshToken() {
+        var refreshTokenData = {
+          appId: appId,
+          grantType: "refreshToken",
+          refreshToken: refreshToken
+        };
+        ajaxRefreshAccessToken(
+          refreshTokenData,
+          refreshTokenSuccess,
+          refreshTokenFail
+        );
+
+        function refreshTokenSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            data = res.data;
+            // data = JSON.parse(data);
+            accessToken = data.accessToken;
+            refreshToken = data.refreshToken;
+            openId = data.openId;
+            getUserInfo();
+          } else {
+            console.log('refreshToken err', res.msg);
+          }
+        }
+
+        function refreshTokenFail(err) {
+          console.log('refreshToken err', err);
+        }
+      }
+
+      // Withdraw
+      function getWithdraw() {
+        document.querySelector('.loadinf-wrap').style.display = 'block';
+        data = {
+          merchantId: merchantId,
+          appId: appId,
+          openId: openId,
+          coinName: coinName,
+          amount: amount,
+          outTradeNo: '' + new Date().getTime(),
+          remark: remark,
+          accessToken: accessToken,
+          notify_url: location.origin
+        };
+        if (!data.appId) {
+          alert('appId 不存在');
+          return;
+        }
+        ajaxWithdraw(data, withdrawSuccess, withdrawFail);
+
+        function withdrawSuccess(res) {
+          document.querySelector('.loadinf-wrap').style.display = 'none';
+          res = JSON.parse(res);
+          if (res.success) {
+            data = res.data;
+            // data = JSON.parse(data);
+            document.querySelector('.res').innerHTML = `提现成功`;
+            document.querySelector('.auth-wrap').style.display = "none";
+            document.querySelector('.pay-wrap').style.display = "none";
+            document.querySelector('.status-wrap').style.display = "block";
+            console.log("Withdraw res data:", data);
+          } else {
+            alert(res.msg);
+            console.log('Withdraw err', res.msg)
+          }
+        }
+
+        function withdrawFail(err) {
+          document.querySelector('.loadinf-wrap').style.display = 'none';
+          alert(err);
+          err = JSON.parse(err);
+          console.log('Withdraw err', err);
+        }
+      }
+
+      // ajax
+      function ajaxGetUserInfo(data, success, fail) {
+        console.log("before GetUserInfo data:", data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/sdk/userinfo",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxGetAccessToken(data, success, fail) {
+        console.log("before GetAccessToken data:", data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/sdk/oauth2/token",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxRefreshAccessToken(data, success, fail) {
+        console.log("before RefreshAccessToken data:", data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/sdk/oauth2/token/refresh",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxWithdraw(data, success, fail) {
+        console.log("before Withdraw data:", data);
+        const header = [{
+          name: "access-token",
+          value: data.accessToken || ""
+        }];
+        console.log(`header:${JSON.stringify(header)}`)
+        delete data.accessToken;
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/sdk/merchant/user/withdraw",
+          data: data,
+          success: success,
+          fail: fail,
+          // header: header
+        });
+      }
+
+      // utils
+      function httpAjax(opt) {
+        opt = opt || {};
+        var type = opt.type || "GET";
+        type = type.toUpperCase() || "GET";
+        var url = opt.url || "";
+        var async = opt.async || true;
+        var data = opt.data || null;
+        var header = opt.header || [];
+        var success = opt.success || function () {};
+        var fail = opt.fail || function () {};
+        var xmlHttp = null;
+        if (XMLHttpRequest) {
+          xmlHttp = new XMLHttpRequest();
+        } else {
+          xmlHttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        var params = [];
+        for (var key in data) {
+          params.push(key + "=" + data[key]);
+        }
+        var dataStr = params.join("&");
+        if (type === "POST") {
+          xmlHttp.open(type, url, async);
+          xmlHttp.setRequestHeader(
+            "Content-Type",
+            "application/json;charset=utf-8"
+          );
+          // xmlHttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8');
+          // xmlHttp.setRequestHeader('Content-Type', 'multipart/form-data;charset=utf-8');
+          for (let head of header) {
+            xmlHttp.setRequestHeader(head.name, head.value);
+          }
+          data = JSON.stringify(data);
+          xmlHttp.send(data);
+        } else {
+          url = url + (url.indexOf("?") > -1 ? "&" : "?") + dataStr;
+          xmlHttp.open(type, url, async);
+          for (let head of header) {
+            xmlHttp.setRequestHeader(head.name, head.value);
+          }
+          xmlHttp.send(null);
+        }
+        xmlHttp.onreadystatechange = function () {
+          if (xmlHttp.readyState == 4) {
+            var status = xmlHttp.status;
+            if (status >= 200 && status < 300) {
+              success && success(xmlHttp.responseText);
+            } else {
+              fail && fail(status);
+            }
+          }
+        };
+      }
+
+      function get_query(str) {
+        // url转obj
+        if (!str) {
+          str = location.search.substring(1);
+        }
+        const query_scan = str ?
+          JSON.parse(
+            '{"' + str.replace(/&/g, '","').replace(/=/g, '":"') + '"}',
+            function (key, value) {
+              return key === "" ? value : decodeURIComponent(value);
+            }
+          ) : {};
+        return query_scan;
+      }
+
+      /* 浏览器环境检测
+       * @return {object}    {isAndroid,isIphone,isWeixin}
+       */
+      function scanProduct() {
+        // js设备校验
+        let obj = {};
+        const ua = navigator.userAgent.toLowerCase();
+
+        obj.isAndroid = /(Android)/i.test(navigator.userAgent); //android终端
+        obj.isIphone = ua.indexOf("iphone") > -1 ? true : false; //ipone
+        obj.isWeixin = ua.match(/MicroMessenger/i) == "micromessenger"; //微信
+        return obj;
+      }
+    };
+  </script>
+</body>
+
+</html>
