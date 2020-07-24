@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <script src="./sdk/secretsdk_min.js"></script>
+  <script src="./crypto.js"></script>
+  <title>secret authorization h5 测试</title>
+  <style>
+    html,
+    body {
+      font-size: 100px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    input,
+    textarea {
+      border: 1px solid #ccc;
+      display: inline-block;
+      width: 100%;
+      padding-left: 5px;
+      min-height: .3rem;
+    }
+
+    button {
+      display: inline-block;
+      width: 33.3vw;
+      height: .4rem;
+      border-radius: .15rem;
+      font-size: .14rem;
+      color: blue;
+      margin-top: .1rem;
+      margin-bottom: .2rem;
+    }
+
+    .paybox {
+      width: 33%;
+      float: left;
+      font-size: 16px;
+    }
+
+    .infobox {
+      float: left;
+      text-align: center;
+      font-size: .14rem;
+      color: green;
+      display: block;
+      width: 33%;
+      height: 100vh;
+      max-height: 100vh;
+      margin-top: 0;
+      word-break: break-word;
+      overflow-y: auto;
+      padding: .3rem .03rem;
+    }
+
+    .appbox {
+      width: 33%;
+      float: right;
+      font-size: .18rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="paybox">
+    <p>
+      merchantId: <input type="text" class="recharge-merchantId" placeholder="从后台获取商户id" value="" />
+    </p>
+    <p>appId: <input type="text" placeholder="默认与右边appId一致" class="recharge-appId" value="" /></p>
+    <p>openId: <input type="text" placeholder="授权后自动填写" class="recharge-openId" value="" /></p>
+    <p>
+      accessToken: <input type="text" placeholder="授权后自动填写" class="recharge-accessToken" value="" />
+    </p>
+    <p>coinId: <input type="text" class="recharge-coinId" value="1062752327128649729" /></p>
+    <p>amount: <input type="text" class="recharge-amount" placeholder="金额" value="0.01" /></p>
+    <p>
+      outTradeNo: <input type="text" class="recharge-outTradeNo" placeholder="默认取时间戳" value="" />
+    </p>
+    <p>remark: <input type="text" class="recharge-remark" value="订单备注" /></p>
+    <p>notify_url: <input type="text" class="recharge-notify_url" placeholder="默认取当前页" value="" /></p>
+    <p>merchant: <input type="text" class="recharge-merchant" value="商家" /></p>
+    <p>coin: <input type="text" class="recharge-coin" value="NTYSC" /></p>
+    <button class="recharge-btn">用户充值</button>
+    <button class="withdraw-btn" style="color: green;">
+      用户提币
+    </button>
+  </div>
+
+  <p class="infobox">
+  </p>
+
+  <div class="appbox">
+    <p>
+      appid:
+      <textarea type="text" class="appid" placeholder="从后台获取appid"></textarea>
+    </p>
+    <p>
+      responseType: <input type="text" class="responseType" value="code" />
+    </p>
+    <p>scope: <input type="text" class="scope" value="userinfo" /></p>
+    <button class="authorization-box">授权</button>
+    <button class="urlinfo-btn" style="color: green;">获取回调URL信息</button>
+  </div>
+
+  <script>
+    window.onload = function () {
+      var queryObj = get_query();
+      // var baseUrl = "http://api.lliao.net:9090"; // dev
+      // var baseUrl = "https://testapil.secret.one"; //release
+      var baseUrl = "https://api.secret.one"; // master
+      var openId = ""; // 同一主体下用户唯一标识
+      var appId = document.querySelector(".appid").value || ""; // 唯一标识
+      var accessToken = ""; // accessToken
+      var refreshToken = ""; // 用户刷新accessToken
+      var merchantId = ""; // 商户ID
+      var coinId = ""; // 	币种ID
+      var amount = ""; // 提币金额
+      var remark = ""; // 提款备注
+      var secretEncryptInstance = getSecretEncryptInstance({
+        appId: document.querySelector(".appid").value || localStorage.getItem('appId') || "没填写"
+      }); // 加解密实例
+
+      // 查询url query字段
+      document.querySelector('.urlinfo-btn').onclick = function () {
+        const isIphone = scanProduct().isIphone;
+        if (isIphone) {
+          document.querySelector(".infobox").innerHTML =
+            `${document.querySelector(".infobox").innerHTML} </br> 233: ${JSON.stringify(queryObj || {})}`;
+        }
+        alert(JSON.stringify(queryObj || {}))
+      }
+
+      // app授权
+      document.querySelector(".authorization-box").onclick = startAuthorizationFun;
+
+      function startAuthorizationFun() {
+        appId = document.querySelector(".appid").value || "";
+        responseType = document.querySelector(".responseType").value || "";
+        scope = document.querySelector(".scope").value || "";
+
+        if (!appId) {
+          alert('请填写appId');
+          return;
+        }
+        localStorage.setItem('appId', appId); // test
+
+        // 取得sdk实例
+        secretAuthorization = window.getSecretSdk({
+          appId: appId
+        });
+        // 授权
+        var data = {
+          appId,
+          responseType,
+          scope
+        };
+        secretAuthorization.authorization(data);
+        secretAuthorization.destroy();
+      }
+
+      // 用户充值
+      document.querySelector(".recharge-btn").onclick = function () {
+        // 先判断用户是否授权登录
+        if (!document.querySelector(".recharge-accessToken").value) {
+          // 未授权要先授权登录
+          // startAuthorizationFun();
+          startRechargeFun(); // test
+        } else {
+          startRechargeFun();
+        }
+      };
+
+      function startRechargeFun() {
+        if (!document.querySelector(".appid").value) {
+          document.querySelector(".appid").value = localStorage.getItem('appId') || '';
+        }
+        data = {
+          merchantId: document.querySelector(".recharge-merchantId").value || "未填写",
+          appId: document.querySelector(".recharge-appId").value || document.querySelector(".appid").value || "",
+          openId: document.querySelector(".recharge-openId").value || "未填写",
+          coinId: document.querySelector(".recharge-coinId").value || "未填写",
+          amount: document.querySelector(".recharge-amount").value || "未填写",
+          outTradeNo: document.querySelector(".recharge-outTradeNo").value || '' + new Date().getTime(),
+          remark: document.querySelector(".recharge-remark").value || "未填写",
+          accessToken: document.querySelector(".recharge-accessToken").value || "未填写",
+          notify_url: document.querySelector(".recharge-notify_url").value || location.origin,
+          merchant: document.querySelector(".recharge-merchant").value || "未填写",
+          coin: document.querySelector(".recharge-coin").value || "未填写",
+        };
+        if (!data.appId) {
+          alert('appId 不存在');
+          return;
+        }
+        // notify_url
+        data.notify_url += "?merchantId=" + data.merchantId;
+
+        secretAuthorization = window.getSecretSdk({
+          appId: data.appId
+        });
+        console.log(data)
+        secretAuthorization.recharge(data);
+      }
+
+      // 用户提币
+      document.querySelector(".withdraw-btn").onclick = getWithdraw;
+
+      // 获取AccessToken
+      if (queryObj.code) {
+        getAccessToken();
+      } else {
+        document.querySelector(".infobox").innerHTML =
+          `${document.querySelector(".infobox").innerHTML} </br> code不存在`;
+      }
+
+      // config
+      function setConifg() {
+        if (merchantId) {
+          document.querySelector(".recharge-merchantId").value = merchantId;
+        }
+        if (appId) {
+          document.querySelector(".recharge-appId").value = appId;
+        }
+        if (openId) {
+          document.querySelector(".recharge-openId").value = openId;
+        }
+        if (coinId) {
+          document.querySelector(".recharge-coinId").value = coinId;
+        }
+        if (amount) {
+          document.querySelector(".recharge-amount").value = amount;
+        }
+        if (accessToken) {
+          document.querySelector(".recharge-accessToken").value = accessToken;
+        }
+      }
+      // deciphering(
+      // );
+      // endata()
+      // getCode();
+      function getCode() {
+        data = {
+          appId: document.querySelector(".appid").value || "",
+          responseType: "code",
+          scope: "userinfo",
+          randomCode: '111'
+        };
+        data = secretEncryptInstance.toEncrypt(data);
+        console.log(`getCode
+          ${JSON.stringify(data)}`);
+      }
+
+      function deciphering(s) {
+        console.log(`deciphering
+           ${secretEncryptInstance.toDecrypt(s)}`);
+        return secretEncryptInstance.toDecrypt(s);
+      }
+
+      function endata(s) {
+        console.log(`deciphering
+           ${secretEncryptInstance.toEncrypt(s)}`);
+        return secretEncryptInstance.toEncrypt(s);
+      }
+
+      // AccessToken
+      function getAccessToken(callbackSuccess, callbackFail) {
+        var tokenData = {
+          appId: document.querySelector(".appid").value ||
+            localStorage.getItem('appId') || "",
+          secret: "2569c63e504541a3b2764f2976e5c8c3",
+          code: queryObj.code,
+          grantType: "authorizationCode"
+        };
+        if (!tokenData.appId) {
+          alert("appId不能为空")
+        }
+        ajaxGetAccessToken(tokenData, tokenSuccess, tokenFail);
+
+        function tokenSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            data = secretEncryptInstance.toDecrypt(res.data);
+            data = JSON.parse(data);
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> accesstoken success :  ${JSON.stringify(data)};`;
+            console.log("token", data);
+            openId = data.openId;
+            accessToken = data.accessToken;
+            refreshToken = data.refreshToken;
+            appId = tokenData.appId;
+            setConifg();
+            callbackSuccess && callbackSuccess();
+            // 获取用户信息
+            getUserInfo();
+          } else {
+            callbackFail && callbackFail();
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> toekn error :  ${res.msg};`;
+          }
+        }
+
+        function tokenFail(err) {
+          callbackFail && callbackFail();
+          err = JSON.parse(err);
+          document.querySelector(".infobox").innerHTML = `${
+              document.querySelector(".infobox").innerHTML
+            } </br> toekn error =>  ${err};`;
+        }
+      }
+
+      // UserInfo
+      function getUserInfo() {
+        var userInfoData = {
+          accessToken,
+          openId: openId
+        };
+
+        ajaxGetUserInfo(userInfoData, userInfoSuccess, userInfoFail);
+
+        function userInfoSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            data = secretEncryptInstance.toDecrypt(res.data);
+            var data = JSON.parse(data);
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> 用户数据:${JSON.stringify(data)};`;
+            console.log("userInfo", data);
+          } else {
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> toekn error :  ${res.msg};`;
+            if (appId && refreshToken) {
+              getRefreshToken();
+              getUserInfo();
+            }
+          }
+        }
+
+        function userInfoFail(err) {
+          err = JSON.parse(err);
+          document.querySelector(".infobox").innerHTML = `${
+              document.querySelector(".infobox").innerHTML
+            } </br> userinfo err :${err};`;
+          console.log(err);
+        }
+      }
+
+      // RefreshToken
+      function getRefreshToken() {
+        var refreshTokenData = {
+          appId: document.querySelector(".appid").value ||
+            "",
+          grantType: "refreshToken",
+          refreshToken: refreshToken
+        };
+        ajaxRefreshAccessToken(
+          getRefreshToken,
+          refreshTokenSuccess,
+          refreshTokenFail
+        );
+
+        function refreshTokenSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            data = secretEncryptInstance.toDecrypt(res.data);
+            data = JSON.parse(data);
+            accessToken = data.accessToken;
+            refreshToken = data.refreshToken;
+            openId = data.openId;
+          } else {
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> toekn error :  ${res.msg};`;
+          }
+        }
+
+        function refreshTokenFail(err) {
+          document.querySelector(".infobox").innerHTML = `${
+              document.querySelector(".infobox").innerHTML
+            } </br> toekn error :  ${err};`;
+        }
+      }
+
+      // Withdraw
+      function getWithdraw() {
+        if (!document.querySelector(".appid").value) {
+          document.querySelector(".appid").value = localStorage.getItem('appId') || '';
+        }
+        data = {
+          merchantId: document.querySelector(".recharge-merchantId").value || "未填写",
+          appId: document.querySelector(".recharge-appId").value || document.querySelector(".appid").value || "未填写",
+          openId: document.querySelector(".recharge-openId").value || "未填写",
+          coinId: document.querySelector(".recharge-coinId").value || "",
+          amount: document.querySelector(".recharge-amount").value || "未填写",
+          outTradeNo: document.querySelector(".recharge-outTradeNo").value || "未填写",
+          remark: document.querySelector(".recharge-remark").value || "未填写",
+          accessToken: document.querySelector(".recharge-accessToken").value || "未填写",
+          notify_url: document.querySelector(".recharge-notify_url").value || location.origin
+        };
+        if (!data.appId) {
+          alert('appId 不存在');
+          return;
+        }
+        ajaxWithdraw(data, withdrawSuccess, withdrawFail);
+
+        function withdrawSuccess(res) {
+          res = JSON.parse(res);
+          if (res.success) {
+            data = secretEncryptInstance.toDecrypt(res.data);
+            data = JSON.parse(data);
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> withdraw success :  ${data};`;
+            console.log("Withdraw res data:", data);
+          } else {
+            document.querySelector(".infobox").innerHTML = `${
+                document.querySelector(".infobox").innerHTML
+              } </br> withdraw error :  ${res.msg};`;
+          }
+        }
+
+        function withdrawFail(err) {
+          err = JSON.parse(err);
+          document.querySelector(".infobox").innerHTML = `${
+              document.querySelector(".infobox").innerHTML
+            } </br> withdraw error =>  ${err};`;
+        }
+      }
+
+      // ajax
+      function ajaxGetUserInfo(data, success, fail) {
+        console.log("before GetUserInfo data:", data);
+        data = secretEncryptInstance.toEncrypt(data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/api/v1/sdk/userinfo",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxGetAccessToken(data, success, fail) {
+        console.log("before GetAccessToken data:", data);
+        data = secretEncryptInstance.toEncrypt(data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/api/v1/sdk/oauth2/token",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxRefreshAccessToken(data, success, fail) {
+        console.log("before RefreshAccessToken data:", data);
+        data = secretEncryptInstance.toEncrypt(data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/api/v1/sdk/oauth2/token/refresh",
+          data: data,
+          success: success,
+          fail: fail
+        });
+      }
+
+      function ajaxWithdraw(data, success, fail) {
+        console.log("before Withdraw data:", data);
+        const header = [{
+          name: "access-token",
+          value: data.accessToken || "未填写"
+        }];
+        delete data.accessToken;
+        secretEncryptInstance = getSecretEncryptInstance({
+          appId: data.appId
+        });
+        data = secretEncryptInstance.toEncrypt(data);
+
+        httpAjax({
+          type: "POST",
+          url: baseUrl + "/api/v1/sdk/merchant/user/withdraw",
+          data: data,
+          success: success,
+          fail: fail,
+          header: header
+        });
+      }
+
+      // utils
+      function httpAjax(opt) {
+        opt = opt || {};
+        var type = opt.type || "GET";
+        type = type.toUpperCase() || "GET";
+        var url = opt.url || "";
+        var async = opt.async || true;
+        var data = opt.data || null;
+        var header = opt.header || [];
+        var success = opt.success || function () {};
+        var fail = opt.fail || function () {};
+        var xmlHttp = null;
+        if (XMLHttpRequest) {
+          xmlHttp = new XMLHttpRequest();
+        } else {
+          xmlHttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        var params = [];
+        for (var key in data) {
+          params.push(key + "=" + data[key]);
+        }
+        var dataStr = params.join("&");
+        if (type === "POST") {
+          xmlHttp.open(type, url, async);
+          xmlHttp.setRequestHeader(
+            "Content-Type",
+            "application/json;charset=utf-8"
+          );
+          // xmlHttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8');
+          // xmlHttp.setRequestHeader('Content-Type', 'multipart/form-data;charset=utf-8');
+          for (let head of header) {
+            xmlHttp.setRequestHeader(head.name, head.value);
+          }
+          data = JSON.stringify(data);
+          xmlHttp.send(data);
+        } else {
+          url = url + (url.indexOf("?") > -1 ? "&" : "?") + dataStr;
+          xmlHttp.open(type, url, async);
+          for (let head of header) {
+            xmlHttp.setRequestHeader(head.name, head.value);
+          }
+          xmlHttp.send(null);
+        }
+        xmlHttp.onreadystatechange = function () {
+          if (xmlHttp.readyState == 4) {
+            var status = xmlHttp.status;
+            if (status >= 200 && status < 300) {
+              success && success(xmlHttp.responseText);
+            } else {
+              fail && fail(status);
+            }
+          }
+        };
+      }
+
+      function get_query(str) {
+        // url转obj
+        if (!str) {
+          str = location.search.substring(1);
+        }
+        const query_scan = str ?
+          JSON.parse(
+            '{"' + str.replace(/&/g, '","').replace(/=/g, '":"') + '"}',
+            function (key, value) {
+              return key === "" ? value : decodeURIComponent(value);
+            }
+          ) : {};
+        return query_scan;
+      }
+
+      /* 浏览器环境检测
+       * @return {object}    {isAndroid,isIphone,isWeixin}
+       */
+      function scanProduct() {
+        // js设备校验
+        let obj = {};
+        const ua = navigator.userAgent.toLowerCase();
+
+        obj.isAndroid = /(Android)/i.test(navigator.userAgent); //android终端
+        obj.isIphone = ua.indexOf("iphone") > -1 ? true : false; //ipone
+        obj.isWeixin = ua.match(/MicroMessenger/i) == "micromessenger"; //微信
+        return obj;
+      }
+      /* secret加密解密工具类
+       * @return {object}{}  {encrypt, decrypt, hmacSHA256}
+       */
+      function getSecretEncryptInstance(secretData) {
+        const key = CryptoJS.enc.Base64.parse("bHh0eGRvc3Bkb3NsZGFhYQ=="); // 十六位十六进制数作为密钥
+        const iv = CryptoJS.enc.Base64.parse("MDM5MjAzOTIwMzIwMTgxMg=="); // 十六位十六进制数作为密钥偏移量
+        const that = this;
+        // cry解密
+        function toDecrypt(word) {
+          const srcs = CryptoJS.enc.Base64.parse(word);
+          const ciphertext = CryptoJS.enc.Base64.stringify(srcs);
+          const decrypt = CryptoJS.AES.decrypt(ciphertext, key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+          });
+          const decryptedStr = decrypt.toString(CryptoJS.enc.Utf8);
+          return decryptedStr.toString();
+        }
+        // cry加密
+        function toEncrypt(word) {
+          word = encrypt(word);
+          const encrypted = CryptoJS.AES.encrypt(JSON.stringify(word), key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+          });
+          const srcs = CryptoJS.enc.Base64.stringify(encrypted.ciphertext);
+          return {
+            requestBody: srcs,
+            appId: secretData.appId
+          };
+        }
+        // 排序的函数
+        function objKeySort(obj) {
+          const newkey = Object.keys(obj).sort();
+          // 先用Object内置类的keys方法获取要排序对象的属性名，再利用Array原型上的sort方法对获取的属性名进行排序，newkey是一个数组
+          const newObj = {}; // 创建一个新的对象，用于存放排好序的键值对
+          for (let i = 0; i < newkey.length; i++) {
+            // 遍历newkey数组
+            newObj[newkey[i]] = obj[newkey[i]]; // 向新创建的对象中按照排好的顺序依次增加键值对
+          }
+          return newObj; // 返回排好序的新对象
+        }
+        // default Data
+        var defaultData = {
+          traceId: uuidv1().replace(/-/g, ""),
+          signKey: "DsDFSqweqweEWRdsgfsadfEWRHJ577"
+        };
+        // uuidv1
+        function uuidv1() {
+          function P(str, length) {
+            return ("0000000000000000" + str).slice(-length);
+          }
+
+          function R() {
+            return P((~~(Math.random() * 0x1000)).toString(16), 3);
+          }
+
+          function $() {
+            var now = new Date();
+            var time = P(
+              (
+                10000 *
+                (+new Date(now.getTime() - now.getTimezoneOffset() * 60000) +
+                  12219292800000)
+              ).toString(16),
+              16
+            );
+            return (
+              time.slice(8, 16) +
+              "-" +
+              time.slice(4, 8) +
+              "-1" +
+              time.slice(1, 4) +
+              "-8" +
+              R() +
+              "-" +
+              R() +
+              R() +
+              R() +
+              R()
+            );
+          }
+          return $();
+        }
+        // 加密api数据
+        function encrypt(data) {
+          data = Object.assign({}, data, defaultData, {
+            timestamp: +new Date()
+          });
+          // 排序
+          data = objKeySort(data);
+          // 键值对拼接请求参数
+          let strs = "";
+          for (const i in data) {
+            let temp = data[i];
+            if (typeof temp === "string") {
+              temp = temp.substr(0, 5000);
+            }
+            strs += i + temp;
+          }
+          // 加上signKey的value
+          strs += "CddasdfEFGDFG23123rffgdgRTREGG";
+          // md5加密并截取第5位带第30位后转换大写
+          const signature = CryptoJS.MD5(strs)
+            .toString()
+            .substr(4, 35)
+            .toUpperCase();
+          // 返回签名后的结果
+          return Object.assign({}, data, {
+            signature
+          });
+        }
+        return {
+          toEncrypt: toEncrypt,
+          toDecrypt: toDecrypt
+        };
+      }
+    };
+  </script>
+</body>
+
+</html>
