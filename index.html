@@ -15,21 +15,22 @@
 
 <body>
 <script src="https://www.fincy.com/js/fincysdk.js"></script>
+<script>
+    window.onload = function () {
+      // Use appId to initialize Fincy sdk and obtain an instance
+      var secretAuthorization = window.getSecretSdk({
+          appId: "APP unique identifier"
+      });
 
-window.onload = function () {
-  // Use appId to initialize Fincy sdk and obtain an instance
-  var secretAuthorization = window.getSecretSdk({
-      appId: "APP unique identifier"
-  });
+      // Using the sdk instance, invoke the Fincy app to complete the authorization
+      secretAuthorization.authorization({ 
+        appId       : "ba748dafda094bf08625d7b3ea73d2a2", // mandatory
+        responseType: "code", // mandatory
+        scope       : "userinfo" // mandatory
 
-  // Using the sdk instance, invoke the Fincy app to complete the authorization
-  secretAuthorization.authorization({ 
-    appId       : "ba748dafda094bf08625d7b3ea73d2a2", // mandatory
-    responseType: "code", // mandatory
-    scope       : "userinfo" // mandatory
-
-  });
-}
+      });
+    }
+    </script>
 </body>
 
 </html>
