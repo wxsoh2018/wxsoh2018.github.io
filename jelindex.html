@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>secret sdk</title>
+    <style>
+
+    </style>
+
+</head>
+
+<body>
+    <script src="https://www.fincy.com/js/fincysdk.js"></script>
+    <script>
+        window.onload = function () {
+            // Use appId to initialize Fincy sdk and obtain an instance
+            var secretAuthorization = window.getSecretSdk({
+                appId: "5591fc2f3ce44f6daf160c10ce93c31b"
+            });
+
+            // Using the sdk instance, invoke the Fincy app to complete the authorization
+            secretAuthorization.authorization({
+                appId: "5591fc2f3ce44f6daf160c10ce93c31b", // mandatory
+                responseType: "code", // mandatory
+                scope: "userinfo" // mandatory
+
+            });
+        }
+    </script>
+</body>
+
+</html>
